@@ -2,11 +2,35 @@ import chess
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/set
 import lustre/attribute.{class} as attr
 import lustre/element.{type Element}
 import lustre/element/html
+import lustre/event
 
-pub fn render(game game: chess.GameState) -> Element(a) {
+pub type Model {
+  NothingSelected(state: chess.GameState)
+  FigureSelected(
+    state: chess.GameState,
+    selected_figure: chess.Coordinate,
+    moves: dict.Dict(chess.Coordinate, chess.AvailableMove),
+  )
+}
+
+pub fn render(
+  model model: Model,
+  on_click on_click: fn(chess.Coordinate) -> msg,
+) -> Element(msg) {
+  let #(highlighted_squares, move_squares) = case model {
+    NothingSelected(_) -> #(set.new(), set.new())
+    FigureSelected(_, selected_figure:, moves:) -> {
+      #(
+        [selected_figure] |> set.from_list(),
+        moves |> dict.keys() |> set.from_list(),
+      )
+    }
+  }
+
   html.div(
     [
       class("grid h-[100vmin] w-[100vmin] grid-cols-8 grid-rows-8 select-none"),
@@ -14,7 +38,10 @@ pub fn render(game game: chess.GameState) -> Element(a) {
     list.map(coordinates(), fn(coord) {
       render_square(
         colour: coordinate_colour(coord:),
-        figure: game |> chess.get_board |> board_get(coord:),
+        figure: chess.get_figure(game: model.state, coord:),
+        is_highlighted: highlighted_squares |> set.contains(coord),
+        is_move: move_squares |> set.contains(coord),
+        on_click: fn() { on_click(coord) },
       )
     }),
   )
@@ -23,19 +50,57 @@ pub fn render(game game: chess.GameState) -> Element(a) {
 fn render_square(
   colour colour: CoordinateColour,
   figure figure: Option(#(chess.Figure, chess.Player)),
-) -> Element(a) {
+  on_click on_click: fn() -> msg,
+  is_highlighted is_highlighted: Bool,
+  is_move is_move: Bool,
+) -> Element(msg) {
+  let figure = case figure {
+    None -> None
+    Some(figure) -> Some(render_figure(figure))
+  }
+  let move_indicator = case is_move {
+    False -> None
+    True -> Some(render_move_indicator(is_figure: figure != None))
+  }
+
   html.div(
     [
       attr.classes([
-        #("bg-[var(--color-square-dark)]", colour == Dark),
-        #("bg-[var(--color-square-light)]", colour == Light),
+        #("relative", True),
+        #("bg-[var(--color-square-dark)]", colour == Dark && !is_highlighted),
+        #("bg-[var(--color-square-light)]", colour == Light && !is_highlighted),
+        #(
+          "bg-[var(--color-square-dark-highlighted)]",
+          colour == Dark && is_highlighted,
+        ),
+        #(
+          "bg-[var(--color-square-light-highlighted)]",
+          colour == Light && is_highlighted,
+        ),
       ]),
+      event.on_mouse_down(on_click()),
     ],
-    case figure {
-      None -> []
-      Some(figure) -> [render_figure(figure)]
-    },
+    [figure, move_indicator] |> option.values(),
   )
+}
+
+fn render_move_indicator(is_figure is_figure: Bool) -> Element(a) {
+  case is_figure {
+    True ->
+      html.img([
+        class("absolute inset-0 h-full w-full"),
+        attr.src("/indicators/capture.svg"),
+        attr.alt("This figure can be captured"),
+        attr.draggable(False),
+      ])
+    False ->
+      html.img([
+        class("absolute inset-0 h-full w-full"),
+        attr.src("/indicators/move.svg"),
+        attr.alt("Can move to here"),
+        attr.draggable(False),
+      ])
+  }
 }
 
 fn render_figure(figure figure: #(chess.Figure, chess.Player)) -> Element(a) {
@@ -66,21 +131,12 @@ fn render_figure(figure figure: #(chess.Figure, chess.Player)) -> Element(a) {
     #(chess.King, chess.Black) -> #("/figures/king_black.svg", "Black King")
   }
 
-  html.img([class("h-full w-full"), attr.src(href), attr.alt(alt)])
-}
-
-fn board_get(
-  board board: chess.Board,
-  coord coord: chess.Coordinate,
-) -> Option(#(chess.Figure, chess.Player)) {
-  case board {
-    chess.Board(white_king:, ..) if white_king == coord ->
-      Some(#(chess.King, chess.White))
-    chess.Board(black_king:, ..) if black_king == coord ->
-      Some(#(chess.King, chess.Black))
-    chess.Board(other_figures:, ..) ->
-      other_figures |> dict.get(coord) |> option.from_result
-  }
+  html.img([
+    class("absolute inset-0 h-full w-full"),
+    attr.src(href),
+    attr.alt(alt),
+    attr.draggable(False),
+  ])
 }
 
 type CoordinateColour {

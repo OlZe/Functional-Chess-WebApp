@@ -1,4 +1,10 @@
 import chess
+import chess/coordinates as coords
+import gleam/dict
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/set
 import lustre
 import lustre/attribute.{class, classes} as attr
 import lustre/effect
@@ -16,14 +22,14 @@ pub fn main() -> Nil {
 }
 
 type Model {
-  Model(is_layout_sideways: Bool, game: chess.GameState)
+  Model(is_layout_sideways: Bool, game: board.Model)
 }
 
 fn init(_flags) {
   let model =
     Model(
-      game: chess.new_game(),
       is_layout_sideways: layout.determine_is_layout_sideways(),
+      game: board.NothingSelected(state: chess.new_game()),
     )
 
   let update_layout_on_resize =
@@ -38,14 +44,69 @@ fn init(_flags) {
 
 type Msg {
   UserResizedWindow
+  UserClickedSquare(square: chess.Coordinate)
 }
 
 fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
-  case msg {
-    UserResizedWindow -> #(
-      Model(..model, is_layout_sideways: layout.determine_is_layout_sideways()),
-      effect.none(),
-    )
+  let model = case msg {
+    UserResizedWindow -> handle_user_resized_window(model:)
+    UserClickedSquare(square:) -> handle_user_clicked_square(model:, square:)
+  }
+
+  #(model, effect.none())
+}
+
+fn handle_user_resized_window(model model: Model) -> Model {
+  Model(..model, is_layout_sideways: layout.determine_is_layout_sideways())
+}
+
+fn handle_user_clicked_square(
+  model model: Model,
+  square square: chess.Coordinate,
+) -> Model {
+  case model.game.state |> chess.get_status {
+    chess.GameEnded(_) -> model
+    chess.GameOngoing(next_player: player) -> {
+      case chess.get_figure(game: model.game.state, coord: square) {
+        // Clicked friendly figure, select
+        Some(#(_, figure_owner)) if figure_owner == player -> {
+          let moves =
+            chess.get_moves(model.game.state, square)
+            |> result.lazy_unwrap(fn() { set.new() })
+            |> set.to_list()
+            |> list.map(fn(move) {
+              case move {
+                chess.EnPassantAvailable(to:) -> #(to, move)
+                chess.PawnPromotionAvailable(to:) -> #(to, move)
+                chess.StdMoveAvailable(to:) -> #(to, move)
+                chess.LongCastleAvailable ->
+                  case player {
+                    chess.White -> #(coords.c1, move)
+                    chess.Black -> #(coords.c8, move)
+                  }
+                chess.ShortCastleAvailable ->
+                  case player {
+                    chess.White -> #(coords.g1, move)
+                    chess.Black -> #(coords.g8, move)
+                  }
+              }
+            })
+            |> dict.from_list()
+
+          Model(
+            ..model,
+            game: board.FigureSelected(
+              state: model.game.state,
+              selected_figure: square,
+              moves: moves,
+            ),
+          )
+        }
+        // Deselect
+        _ ->
+          Model(..model, game: board.NothingSelected(state: model.game.state))
+      }
+    }
   }
 }
 
@@ -73,7 +134,9 @@ fn view(model model: Model) -> Element(Msg) {
             #("h-[100vmin] min-h-[100vmin]", !model.is_layout_sideways),
           ]),
         ],
-        [board.render(game: model.game)],
+        [
+          board.render(model: model.game, on_click: UserClickedSquare),
+        ],
       ),
 
       // Sidebar
