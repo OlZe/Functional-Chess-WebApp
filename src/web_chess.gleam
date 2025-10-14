@@ -1,5 +1,6 @@
 import chess
 import lustre
+import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
@@ -25,5 +26,5 @@ fn update(model model: Model, msg _msg: Msg) -> Model {
 }
 
 fn view(model model: Model) -> Element(Msg) {
-  html.p([], [html.text("hello world")])
+  html.p([attribute.class("text-center")], [html.text("hello world")])
 }
