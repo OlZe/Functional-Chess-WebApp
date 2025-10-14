@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+@theme {
+  --color-background: #302e2b;
+  --color-text: #989795;
+}
+
+@layer base {
+  :root {
+    --color-square-light: #f2d5b3;
+    --color-square-light-highlighted: #fbe97f;
+    --color-square-dark: #c08566;
+    --color-square-dark-highlighted: #e2c15b;
+    --color-indicator-move: #77625780;
+    --layout-sidebar-min-width: 15rem;
+  }
+
+  a {
+    @apply underline;
+  }
+}
