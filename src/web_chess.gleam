@@ -3,44 +3,95 @@ import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import lustre
-import lustre/attribute.{class} as attr
+import lustre/attribute.{class, classes} as attr
+import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
+import web_chess/layout
 
 pub fn main() -> Nil {
-  let app = lustre.simple(init:, update:, view:)
+  let app = lustre.application(init:, update:, view:)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 
   Nil
 }
 
 type Model {
-  Model(game: chess.GameState)
+  Model(is_layout_sideways: Bool, game: chess.GameState)
 }
 
 fn init(_flags) {
-  Model(game: chess.new_game())
+  let model =
+    Model(
+      game: chess.new_game(),
+      is_layout_sideways: layout.determine_is_layout_sideways(),
+    )
+
+  let update_layout_on_resize =
+    effect.from(fn(dispatch) {
+      layout.register_callback_on_window_resize(fn() {
+        dispatch(UserResizedWindow)
+      })
+    })
+
+  #(model, update_layout_on_resize)
 }
 
-type Msg
+type Msg {
+  UserResizedWindow
+}
 
-fn update(model model: Model, msg _msg: Msg) -> Model {
-  model
+fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
+  case msg {
+    UserResizedWindow -> #(
+      Model(..model, is_layout_sideways: layout.determine_is_layout_sideways()),
+      effect.none(),
+    )
+  }
 }
 
 fn view(model model: Model) -> Element(Msg) {
   html.body(
     [
-      class("bg-background text-text font-sans min-w-screen min-h-screen"),
+      class(
+        "flex bg-background text-text font-sans h-screen w-screen overflow-x-hidden",
+      ),
+      classes([
+        #("flex-row items-stretch", model.is_layout_sideways),
+        #("flex-col items-stretch", !model.is_layout_sideways),
+      ]),
     ],
     [
-      html.div([class("flex flex-row flex-wrap")], [
-        // todo: vertical spacer
-        // Board
-        render_board(model:),
+      // vertical spacer
+      html.div([class("h-[calc(50vh-50vmin)] flex-none")], []),
 
-        // Sidebar
-        html.aside([class("w-[var(--layout-sidebar-min-width)]")], [
+      // Board
+      html.main(
+        [
+          classes([
+            #("flex justify-center", True),
+            #("flex-1", model.is_layout_sideways),
+            #("h-[100vmin] min-h-[100vmin]", !model.is_layout_sideways),
+          ]),
+        ],
+        [
+          render_board(model:),
+        ],
+      ),
+
+      // Sidebar
+      html.aside(
+        [
+          classes([
+            #("flex flex-col justify-between", True),
+            #(
+              "h-full w-[var(--layout-sidebar-min-width)] overflow-y-scroll",
+              model.is_layout_sideways,
+            ),
+            #("w-full flex-1", !model.is_layout_sideways),
+          ]),
+        ],
+        [
           html.div([], [
             html.p([], [html.text("Move1")]),
             html.p([], [html.text("Move2")]),
@@ -48,10 +99,44 @@ fn view(model model: Model) -> Element(Msg) {
             html.p([], [html.text("Move4")]),
             html.p([], [html.text("Move5")]),
           ]),
-        ]),
-      ]),
+
+          html.div([class("text-center")], [render_license()]),
+        ],
+      ),
     ],
   )
+}
+
+fn render_license() -> Element(Msg) {
+  html.p([class("m-1 text-xs")], [
+    html.a(
+      [
+        class("whitespace-nowrap"),
+        attr.href(
+          "https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces",
+        ),
+        attr.target("_blank"),
+      ],
+      [html.text("Chess icons")],
+    ),
+    html.text(" by "),
+    html.a(
+      [
+        attr.href("https://commons.wikimedia.org/wiki/User:Cburnett"),
+        attr.target("_blank"),
+      ],
+      [html.text("Cburnett")],
+    ),
+    html.text(" "),
+    html.a(
+      [
+        class("whitespace-nowrap"),
+        attr.href("https://creativecommons.org/licenses/by-sa/3.0/deed.en"),
+        attr.target("_blank"),
+      ],
+      [html.text("CC BY-SA 3.0")],
+    ),
+  ])
 }
 
 fn render_board(model model: Model) -> Element(Msg) {
