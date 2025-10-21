@@ -1,4 +1,4 @@
-name = "web_chess"
+name = "app"
 version = "1.0.0"
 target = "javascript"
 
