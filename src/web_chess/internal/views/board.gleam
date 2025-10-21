@@ -120,14 +120,14 @@ fn render_move_indicator(is_figure is_figure: Bool) -> Element(a) {
     True ->
       html.img([
         class("absolute inset-0 h-full w-full"),
-        attr.src("/indicators/capture.svg"),
+        attr.src("./indicators/capture.svg"),
         attr.alt("This figure can be captured"),
         attr.draggable(False),
       ])
     False ->
       html.img([
         class("absolute inset-0 h-full w-full"),
-        attr.src("/indicators/move.svg"),
+        attr.src("./indicators/move.svg"),
         attr.alt("Can move to here"),
         attr.draggable(False),
       ])
@@ -136,30 +136,30 @@ fn render_move_indicator(is_figure is_figure: Bool) -> Element(a) {
 
 fn render_figure(figure figure: #(chess.Figure, chess.Player)) -> Element(a) {
   let #(href, alt) = case figure {
-    #(chess.Pawn, chess.White) -> #("/figures/pawn_white.svg", "White Bishop")
+    #(chess.Pawn, chess.White) -> #("./figures/pawn_white.svg", "White Bishop")
     #(chess.Knight, chess.White) -> #(
-      "/figures/knight_white.svg",
+      "./figures/knight_white.svg",
       "White Knight",
     )
     #(chess.Bishop, chess.White) -> #(
-      "/figures/bishop_white.svg",
+      "./figures/bishop_white.svg",
       "White Bishop",
     )
-    #(chess.Rook, chess.White) -> #("/figures/rook_white.svg", "White Rook")
-    #(chess.Queen, chess.White) -> #("/figures/queen_white.svg", "White Queen")
-    #(chess.King, chess.White) -> #("/figures/king_white.svg", "White King")
-    #(chess.Pawn, chess.Black) -> #("/figures/pawn_black.svg", "Black Pawn")
+    #(chess.Rook, chess.White) -> #("./figures/rook_white.svg", "White Rook")
+    #(chess.Queen, chess.White) -> #("./figures/queen_white.svg", "White Queen")
+    #(chess.King, chess.White) -> #("./figures/king_white.svg", "White King")
+    #(chess.Pawn, chess.Black) -> #("./figures/pawn_black.svg", "Black Pawn")
     #(chess.Knight, chess.Black) -> #(
-      "/figures/knight_black.svg",
+      "./figures/knight_black.svg",
       "Black Knight",
     )
     #(chess.Bishop, chess.Black) -> #(
-      "/figures/bishop_black.svg",
+      "./figures/bishop_black.svg",
       "Black Bishop",
     )
-    #(chess.Rook, chess.Black) -> #("/figures/rook_black.svg", "Black Rook")
-    #(chess.Queen, chess.Black) -> #("/figures/queen_black.svg", "Black Queen")
-    #(chess.King, chess.Black) -> #("/figures/king_black.svg", "Black King")
+    #(chess.Rook, chess.Black) -> #("./figures/rook_black.svg", "Black Rook")
+    #(chess.Queen, chess.Black) -> #("./figures/queen_black.svg", "Black Queen")
+    #(chess.King, chess.Black) -> #("./figures/king_black.svg", "Black King")
   }
 
   html.img([
