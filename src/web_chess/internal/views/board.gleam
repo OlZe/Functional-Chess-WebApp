@@ -1,7 +1,9 @@
 import chess
+import chess/coordinates as coords
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/set
 import lustre/attribute.{class} as attr
 import lustre/element.{type Element}
@@ -45,6 +47,27 @@ pub fn render(
       )
     }),
   )
+}
+
+pub fn handle_clicked_square(
+  model model: Model,
+  square square: chess.Coordinate,
+) -> Model {
+  case model.state |> chess.get_status {
+    chess.GameEnded(_) -> model
+    chess.GameOngoing(_) -> {
+      case model {
+        FigureSelected(state:, selected_figure: from, moves:) -> {
+          let clicked_move = dict.get(moves, square)
+          case clicked_move {
+            Ok(move) -> try_do_move(model.state, from, move)
+            Error(_) -> try_select(state, square)
+          }
+        }
+        NothingSelected(state:) -> try_select(state, square)
+      }
+    }
+  }
 }
 
 fn render_square(
@@ -212,4 +235,75 @@ fn coordinates() -> List(chess.Coordinate) {
     files
     |> list.map(fn(file) { chess.Coordinate(file, row) })
   })
+}
+
+fn try_do_move(
+  game game: chess.GameState,
+  from from: chess.Coordinate,
+  move move: chess.AvailableMove,
+) -> Model {
+  // Map from chess.AvailableMove to chess.Move
+
+  let move = case move {
+    chess.EnPassantAvailable(to:) -> chess.EnPassant(from:, to:)
+    chess.LongCastleAvailable -> chess.LongCastle
+    chess.PawnPromotionAvailable(to:) ->
+      chess.PawnPromotion(from:, to:, new_figure: chess.Queen)
+    chess.ShortCastleAvailable -> chess.ShortCastle
+    chess.StdMoveAvailable(to:) -> chess.StdMove(from:, to:)
+  }
+
+  let new_state = chess.player_move(game:, move:)
+  case new_state {
+    Error(err) -> {
+      echo err
+      panic as "error executing move"
+    }
+    Ok(new_state) -> NothingSelected(state: new_state)
+  }
+}
+
+/// Tries to select a figure and return the new model including its moves.
+/// 
+/// Deselects if trying to select an empty square or a figure that belongs to the enemy.
+/// 
+/// Panics if the game is not ongoing.
+fn try_select(
+  game game: chess.GameState,
+  square square: chess.Coordinate,
+) -> Model {
+  let assert chess.GameOngoing(next_player: player) = chess.get_status(game:)
+
+  case chess.get_figure(game, square) {
+    // Clicked friendly figure, select
+    Some(#(_, figure_owner)) if figure_owner == player -> {
+      // Get moves and map to coordinate
+      let moves =
+        chess.get_moves(game:, from: square)
+        |> result.lazy_unwrap(fn() { set.new() })
+        |> set.to_list()
+        |> list.map(fn(move) {
+          case move {
+            chess.EnPassantAvailable(to:) -> #(to, move)
+            chess.PawnPromotionAvailable(to:) -> #(to, move)
+            chess.StdMoveAvailable(to:) -> #(to, move)
+            chess.LongCastleAvailable ->
+              case player {
+                chess.White -> #(coords.c1, move)
+                chess.Black -> #(coords.c8, move)
+              }
+            chess.ShortCastleAvailable ->
+              case player {
+                chess.White -> #(coords.g1, move)
+                chess.Black -> #(coords.g8, move)
+              }
+          }
+        })
+        |> dict.from_list()
+
+      FigureSelected(state: game, selected_figure: square, moves:)
+    }
+    // Deselect
+    _ -> NothingSelected(game)
+  }
 }
