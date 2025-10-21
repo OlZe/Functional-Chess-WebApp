@@ -7,6 +7,7 @@ import lustre/element/html
 import web_chess/internal/layout
 import web_chess/internal/views/board
 import web_chess/internal/views/license
+import web_chess/internal/views/move_history
 
 pub fn main() -> Nil {
   let app = lustre.application(init:, update:, view:)
@@ -100,14 +101,7 @@ fn view(model model: Model) -> Element(Msg) {
           ]),
         ],
         [
-          html.div([], [
-            html.p([], [html.text("Move1")]),
-            html.p([], [html.text("Move2")]),
-            html.p([], [html.text("Move3")]),
-            html.p([], [html.text("Move4")]),
-            html.p([], [html.text("Move5")]),
-          ]),
-
+          move_history.render(model.game.state),
           html.div([class("text-center")], [license.render()]),
         ],
       ),
