@@ -23,7 +23,7 @@ pub fn render(history history: List(board.ArchivedMove)) -> Element(a) {
   html.div(
     [
       class(
-        "grid [grid-template-columns:1.5rem_4.5rem_4.5rem] justify-center gap-y-1 gap-x-1.5 pt-2 pb-2",
+        "grid [grid-template-columns:1.5rem_4.5rem_4.5rem] justify-center gap-y-1 gap-x-1.5 pt-2 pb-1",
       ),
     ],
     history
