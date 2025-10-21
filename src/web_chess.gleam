@@ -24,7 +24,7 @@ fn init(_flags) {
   let model =
     Model(
       is_layout_sideways: layout.determine_is_layout_sideways(),
-      game: board.NothingSelected(state: chess.new_game()),
+      game: board.NothingSelected(state: chess.new_game(), move_history: []),
     )
 
   let update_layout_on_resize =
@@ -101,7 +101,7 @@ fn view(model model: Model) -> Element(Msg) {
           ]),
         ],
         [
-          move_history.render(model.game.state),
+          move_history.render(model.game.move_history),
           html.div([class("text-center")], [license.render()]),
         ],
       ),

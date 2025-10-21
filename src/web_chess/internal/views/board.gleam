@@ -1,4 +1,5 @@
 import chess
+import chess/algebraic_notation as chess_san
 import chess/coordinates as coords
 import gleam/dict
 import gleam/list
@@ -11,12 +12,18 @@ import lustre/element/html
 import lustre/event
 
 pub type Model {
-  NothingSelected(state: chess.GameState)
+  NothingSelected(state: chess.GameState, move_history: List(ArchivedMove))
   FigureSelected(
     state: chess.GameState,
+    move_history: List(ArchivedMove),
     selected_figure: chess.Coordinate,
     moves: dict.Dict(chess.Coordinate, chess.AvailableMove),
   )
+}
+
+pub type ArchivedMove {
+  FullMove(white: String, black: String)
+  HalfMove(white: String)
 }
 
 pub fn render(
@@ -24,8 +31,8 @@ pub fn render(
   on_click on_click: fn(chess.Coordinate) -> msg,
 ) -> Element(msg) {
   let #(highlighted_squares, move_squares) = case model {
-    NothingSelected(_) -> #(set.new(), set.new())
-    FigureSelected(_, selected_figure:, moves:) -> {
+    NothingSelected(..) -> #(set.new(), set.new())
+    FigureSelected(selected_figure:, moves:, ..) -> {
       #(
         [selected_figure] |> set.from_list(),
         moves |> dict.keys() |> set.from_list(),
@@ -57,14 +64,15 @@ pub fn handle_clicked_square(
     chess.GameEnded(_) -> model
     chess.GameOngoing(_) -> {
       case model {
-        FigureSelected(state:, selected_figure: from, moves:) -> {
+        FigureSelected(state:, selected_figure: from, moves:, move_history:) -> {
           let clicked_move = dict.get(moves, square)
           case clicked_move {
-            Ok(move) -> try_do_move(model.state, from, move)
-            Error(_) -> try_select(state, square)
+            Ok(move) -> try_do_move(model.state, move_history, from, move)
+            Error(_) -> try_select(state, move_history, square)
           }
         }
-        NothingSelected(state:) -> try_select(state, square)
+        NothingSelected(state:, move_history:) ->
+          try_select(state, move_history, square)
       }
     }
   }
@@ -239,11 +247,11 @@ fn coordinates() -> List(chess.Coordinate) {
 
 fn try_do_move(
   game game: chess.GameState,
+  history history: List(ArchivedMove),
   from from: chess.Coordinate,
   move move: chess.AvailableMove,
 ) -> Model {
   // Map from chess.AvailableMove to chess.Move
-
   let move = case move {
     chess.EnPassantAvailable(to:) -> chess.EnPassant(from:, to:)
     chess.LongCastleAvailable -> chess.LongCastle
@@ -253,13 +261,27 @@ fn try_do_move(
     chess.StdMoveAvailable(to:) -> chess.StdMove(from:, to:)
   }
 
+  // Execute move and return
   let new_state = chess.player_move(game:, move:)
   case new_state {
     Error(err) -> {
       echo err
       panic as "error executing move"
     }
-    Ok(new_state) -> NothingSelected(state: new_state)
+    Ok(new_state) -> {
+      // Update move history
+      let assert Ok(move_description) = chess_san.describe(game:, move:)
+      let new_history = case history {
+        [] -> [HalfMove(move_description)]
+        [FullMove(..), ..] -> [HalfMove(move_description), ..history]
+        [HalfMove(white_move), ..rest] -> [
+          FullMove(white_move, move_description),
+          ..rest
+        ]
+      }
+
+      NothingSelected(state: new_state, move_history: new_history)
+    }
   }
 }
 
@@ -270,6 +292,7 @@ fn try_do_move(
 /// Panics if the game is not ongoing.
 fn try_select(
   game game: chess.GameState,
+  history history: List(ArchivedMove),
   square square: chess.Coordinate,
 ) -> Model {
   let assert chess.GameOngoing(next_player: player) = chess.get_status(game:)
@@ -301,9 +324,14 @@ fn try_select(
         })
         |> dict.from_list()
 
-      FigureSelected(state: game, selected_figure: square, moves:)
+      FigureSelected(
+        state: game,
+        selected_figure: square,
+        moves:,
+        move_history: history,
+      )
     }
     // Deselect
-    _ -> NothingSelected(game)
+    _ -> NothingSelected(state: game, move_history: history)
   }
 }
