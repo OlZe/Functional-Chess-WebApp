@@ -36,6 +36,11 @@ pub fn render(
     }
   }
 
+  let moving_player = case model.state |> chess.get_status() {
+    chess.GameOngoing(next_player:) -> Some(next_player)
+    chess.GameEnded(_) -> None
+  }
+
   html.div(
     [
       class("grid h-[100vmin] w-[100vmin] grid-cols-8 grid-rows-8 select-none"),
@@ -51,6 +56,7 @@ pub fn render(
         on_drag_enter: fn() { on_drag_enter(coord) },
         on_drag_drop: on_drag_drop,
         on_drag_over: on_drag_over,
+        moving_player:,
       )
     }),
   )
@@ -59,6 +65,7 @@ pub fn render(
 fn render_square(
   colour colour: CoordinateColour,
   figure figure: Option(#(chess.Figure, chess.Player)),
+  moving_player moving_player: Option(chess.Player),
   is_highlighted is_highlighted: Bool,
   is_move is_move: Bool,
   on_click on_click: fn() -> msg,
@@ -69,7 +76,7 @@ fn render_square(
 ) -> Element(msg) {
   let figure = case figure {
     None -> None
-    Some(figure) -> Some(render_figure(figure:, on_drag_start:))
+    Some(figure) -> Some(render_figure(figure:, on_drag_start:, moving_player:))
   }
   let move_indicator = case is_move {
     False -> None
@@ -123,6 +130,7 @@ fn render_move_indicator(is_figure is_figure: Bool) -> Element(a) {
 
 fn render_figure(
   figure figure: #(chess.Figure, chess.Player),
+  moving_player moving_player: Option(chess.Player),
   on_drag_start on_drag_start: fn() -> msg,
 ) -> Element(msg) {
   let #(href, alt) = case figure {
@@ -152,11 +160,12 @@ fn render_figure(
     #(chess.King, chess.Black) -> #("./figures/king_black.svg", "Black King")
   }
 
+  let figure_owner = figure.1
   html.img([
     class("absolute inset-0 h-full w-full"),
     attr.src(href),
     attr.alt(alt),
-    attr.draggable(True),
+    attr.draggable(Some(figure_owner) == moving_player),
     event.on("dragstart", decode.success(on_drag_start())),
   ])
 }
