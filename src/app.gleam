@@ -54,14 +54,6 @@ type Msg {
 }
 
 fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
-  case msg {
-    DoNothing -> "None"
-    _ as msg -> {
-      echo msg
-      "None"
-    }
-  }
-
   let model = case msg {
     UserResizedWindow -> handle_user_resized_window(model:)
     UserClickedSquare(square:) ->

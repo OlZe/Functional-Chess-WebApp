@@ -104,7 +104,6 @@ pub fn handle_drag_start(
     }
     // Deselect
     _ -> {
-      echo "dragging non-friendly: deselect"
       NothingSelected(state: model.state, move_history: model.move_history)
     }
   }
