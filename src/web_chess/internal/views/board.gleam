@@ -1,5 +1,6 @@
 import chess
 import gleam/dict
+import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/set
@@ -11,13 +12,26 @@ import web_chess/internal/game_logic as logic
 
 pub fn render(
   model model: logic.Model,
-  on_click on_click: fn(chess.Coordinate) -> msg,
+  on_square_click on_click: fn(chess.Coordinate) -> msg,
+  on_square_drag_start on_drag_start: fn(chess.Coordinate) -> msg,
+  on_square_drag_end on_drag_end: fn() -> msg,
+  on_square_drag_enter on_drag_enter: fn(chess.Coordinate) -> msg,
+  on_square_drag_drop on_drag_drop: fn() -> msg,
+  on_drag_over on_drag_over: fn() -> msg,
 ) -> Element(msg) {
   let #(highlighted_squares, move_squares) = case model {
     logic.NothingSelected(..) -> #(set.new(), set.new())
     logic.FigureSelected(selected_figure:, moves:, ..) -> {
       #(
         [selected_figure] |> set.from_list(),
+        moves |> dict.keys() |> set.from_list(),
+      )
+    }
+    logic.DraggingFigure(selected_figure:, moves:, dragging_over:, ..) -> {
+      #(
+        [Some(selected_figure), dragging_over]
+          |> option.values()
+          |> set.from_list(),
         moves |> dict.keys() |> set.from_list(),
       )
     }
@@ -34,6 +48,11 @@ pub fn render(
         is_highlighted: highlighted_squares |> set.contains(coord),
         is_move: move_squares |> set.contains(coord),
         on_click: fn() { on_click(coord) },
+        on_drag_start: fn() { on_drag_start(coord) },
+        on_drag_enter: fn() { on_drag_enter(coord) },
+        on_drag_drop: on_drag_drop,
+        on_drag_end: on_drag_end,
+        on_drag_over: on_drag_over,
       )
     }),
   )
@@ -42,13 +61,18 @@ pub fn render(
 fn render_square(
   colour colour: CoordinateColour,
   figure figure: Option(#(chess.Figure, chess.Player)),
-  on_click on_click: fn() -> msg,
   is_highlighted is_highlighted: Bool,
   is_move is_move: Bool,
+  on_click on_click: fn() -> msg,
+  on_drag_start on_drag_start: fn() -> msg,
+  on_drag_end on_drag_end: fn() -> msg,
+  on_drag_enter on_drag_enter: fn() -> msg,
+  on_drag_drop on_drag_drop: fn() -> msg,
+  on_drag_over on_drag_over: fn() -> msg,
 ) -> Element(msg) {
   let figure = case figure {
     None -> None
-    Some(figure) -> Some(render_figure(figure))
+    Some(figure) -> Some(render_figure(figure:, on_drag_start:))
   }
   let move_indicator = case is_move {
     False -> None
@@ -71,6 +95,12 @@ fn render_square(
         ),
       ]),
       event.on_mouse_down(on_click()),
+      event.on("dragover", decode.success(on_drag_over()))
+        |> event.prevent_default(),
+      event.on("drop", decode.success(on_drag_drop()))
+        |> event.prevent_default(),
+      event.on("dragend", decode.success(on_drag_end())),
+      event.on("dragenter", decode.success(on_drag_enter())),
     ],
     [figure, move_indicator] |> option.values(),
   )
@@ -95,7 +125,10 @@ fn render_move_indicator(is_figure is_figure: Bool) -> Element(a) {
   }
 }
 
-fn render_figure(figure figure: #(chess.Figure, chess.Player)) -> Element(a) {
+fn render_figure(
+  figure figure: #(chess.Figure, chess.Player),
+  on_drag_start on_drag_start: fn() -> msg,
+) -> Element(msg) {
   let #(href, alt) = case figure {
     #(chess.Pawn, chess.White) -> #("./figures/pawn_white.svg", "White Bishop")
     #(chess.Knight, chess.White) -> #(
@@ -127,7 +160,8 @@ fn render_figure(figure figure: #(chess.Figure, chess.Player)) -> Element(a) {
     class("absolute inset-0 h-full w-full"),
     attr.src(href),
     attr.alt(alt),
-    attr.draggable(False),
+    attr.draggable(True),
+    event.on("dragstart", decode.success(on_drag_start())),
   ])
 }
 

@@ -44,6 +44,11 @@ fn init(_flags) {
 type Msg {
   UserResizedWindow
   UserClickedSquare(square: chess.Coordinate)
+  UserDragFigureStart(dragging_figure: chess.Coordinate)
+  UserDragFigureEnterSquare(over: chess.Coordinate)
+  UserDragFigureDropOnSquare
+  UserDragFigureEnd
+  DoNothing
 }
 
 fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
@@ -54,6 +59,24 @@ fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
         ..model,
         game: game_logic.handle_clicked_square(model: model.game, square:),
       )
+    UserDragFigureStart(dragging_figure:) ->
+      Model(
+        ..model,
+        game: game_logic.handle_drag_start(
+          model: model.game,
+          square: dragging_figure,
+        ),
+      )
+    UserDragFigureEnterSquare(over:) ->
+      Model(
+        ..model,
+        game: game_logic.handle_drag_enter(model: model.game, over:),
+      )
+    UserDragFigureDropOnSquare ->
+      Model(..model, game: game_logic.handle_drag_drop(model: model.game))
+    UserDragFigureEnd ->
+      Model(..model, game: game_logic.handle_drag_end(model: model.game))
+    DoNothing -> model
   }
 
   #(model, effect.none())
@@ -88,7 +111,15 @@ fn view(model model: Model) -> Element(Msg) {
           ]),
         ],
         [
-          board.render(model: model.game, on_click: UserClickedSquare),
+          board.render(
+            model: model.game,
+            on_square_click: UserClickedSquare,
+            on_square_drag_start: UserDragFigureStart,
+            on_square_drag_drop: fn() { UserDragFigureDropOnSquare },
+            on_square_drag_end: fn() { UserDragFigureEnd },
+            on_square_drag_enter: UserDragFigureEnterSquare,
+            on_drag_over: fn() { DoNothing },
+          ),
         ],
       ),
 
