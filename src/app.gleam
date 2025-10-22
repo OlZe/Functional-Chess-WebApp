@@ -1,9 +1,10 @@
 import chess
 import lustre
-import lustre/attribute.{class, classes} as attr
+import lustre/attribute.{class, classes}
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
+import web_chess/internal/game_logic
 import web_chess/internal/layout
 import web_chess/internal/views/board
 import web_chess/internal/views/license
@@ -17,14 +18,17 @@ pub fn main() -> Nil {
 }
 
 type Model {
-  Model(is_layout_sideways: Bool, game: board.Model)
+  Model(is_layout_sideways: Bool, game: game_logic.Model)
 }
 
 fn init(_flags) {
   let model =
     Model(
       is_layout_sideways: layout.determine_is_layout_sideways(),
-      game: board.NothingSelected(state: chess.new_game(), move_history: []),
+      game: game_logic.NothingSelected(
+        state: chess.new_game(),
+        move_history: [],
+      ),
     )
 
   let update_layout_on_resize =
@@ -48,7 +52,7 @@ fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
     UserClickedSquare(square:) ->
       Model(
         ..model,
-        game: board.handle_clicked_square(model: model.game, square:),
+        game: game_logic.handle_clicked_square(model: model.game, square:),
       )
   }
 

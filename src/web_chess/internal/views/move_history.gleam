@@ -1,13 +1,11 @@
-import chess
-import chess/algebraic_notation
 import gleam/int
 import gleam/list
-import lustre/attribute.{class} as attr
+import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
-import web_chess/internal/views/board
+import web_chess/internal/game_logic as logic
 
-pub fn render(history history: List(board.ArchivedMove)) -> Element(a) {
+pub fn render(history history: List(logic.ArchivedMove)) -> Element(a) {
   // Map to pairs of strings with move number
   let history =
     history
@@ -15,8 +13,8 @@ pub fn render(history history: List(board.ArchivedMove)) -> Element(a) {
     |> list.index_map(fn(move, index) {
       let number = index + 1
       case move {
-        board.FullMove(white:, black:) -> #(number, white, black)
-        board.HalfMove(white:) -> #(number, white, "")
+        logic.FullMove(white:, black:) -> #(number, white, black)
+        logic.HalfMove(white:) -> #(number, white, "")
       }
     })
 
