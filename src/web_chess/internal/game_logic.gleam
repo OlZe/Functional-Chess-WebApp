@@ -178,17 +178,16 @@ pub fn handle_drag_drop_on_square(model model: Model) -> Model {
   }
 }
 
-pub fn handle_drag_drop_outside_board(model model: Model) {
+pub fn handle_drag_end(model model: Model) {
   case model {
     DraggingFigure(
       state:,
-      moves:,
-      dragging_over: _,
       move_history:,
       selected_figure:,
+      moves:,
+      dragging_over: _,
     ) -> FigureSelected(state:, move_history:, selected_figure:, moves:)
-    // If not in a valid dragging state, do nothing
-    _ -> model
+    _ as model -> model
   }
 }
 

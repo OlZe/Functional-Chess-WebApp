@@ -17,6 +17,7 @@ pub fn render(
   on_square_drag_enter on_drag_enter: fn(chess.Coordinate) -> msg,
   on_square_drag_drop on_drag_drop: fn() -> msg,
   on_drag_over on_drag_over: fn() -> msg,
+  on_drag_end on_drag_end: fn() -> msg,
 ) -> Element(msg) {
   let #(highlighted_squares, move_squares) = case model {
     logic.NothingSelected(..) -> #(set.new(), set.new())
@@ -56,6 +57,7 @@ pub fn render(
         on_drag_enter: fn() { on_drag_enter(coord) },
         on_drag_drop: on_drag_drop,
         on_drag_over: on_drag_over,
+        on_drag_end: on_drag_end,
         moving_player:,
       )
     }),
@@ -73,6 +75,7 @@ fn render_square(
   on_drag_enter on_drag_enter: fn() -> msg,
   on_drag_drop on_drag_drop: fn() -> msg,
   on_drag_over on_drag_over: fn() -> msg,
+  on_drag_end on_drag_end: fn() -> msg,
 ) -> Element(msg) {
   let figure = case figure {
     None -> None
@@ -104,6 +107,7 @@ fn render_square(
       event.on("drop", decode.success(on_drag_drop()))
         |> event.prevent_default(),
       event.on("dragenter", decode.success(on_drag_enter())),
+      event.on("dragend", decode.success(on_drag_end())),
     ],
     [figure, move_indicator] |> option.values(),
   )
