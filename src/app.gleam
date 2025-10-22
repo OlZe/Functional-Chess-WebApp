@@ -1,9 +1,11 @@
 import chess
+import gleam/dynamic/decode
 import lustre
 import lustre/attribute.{class, classes}
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
+import lustre/event
 import web_chess/internal/game_logic
 import web_chess/internal/layout
 import web_chess/internal/views/board
@@ -47,7 +49,7 @@ type Msg {
   UserDragFigureStart(dragging_figure: chess.Coordinate)
   UserDragFigureEnterSquare(over: chess.Coordinate)
   UserDragFigureDropOnSquare
-  UserDragFigureEnd
+  UserDragFigureDropOutsideBoard
   DoNothing
 }
 
@@ -70,12 +72,18 @@ fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
     UserDragFigureEnterSquare(over:) ->
       Model(
         ..model,
-        game: game_logic.handle_drag_enter(model: model.game, over:),
+        game: game_logic.handle_drag_enter_square(model: model.game, over:),
       )
     UserDragFigureDropOnSquare ->
-      Model(..model, game: game_logic.handle_drag_drop(model: model.game))
-    UserDragFigureEnd ->
-      Model(..model, game: game_logic.handle_drag_end(model: model.game))
+      Model(
+        ..model,
+        game: game_logic.handle_drag_drop_on_square(model: model.game),
+      )
+    UserDragFigureDropOutsideBoard ->
+      Model(
+        ..model,
+        game: game_logic.handle_drag_drop_outside_board(model: model.game),
+      )
     DoNothing -> model
   }
 
@@ -96,6 +104,9 @@ fn view(model model: Model) -> Element(Msg) {
         #("flex-row items-stretch", model.is_layout_sideways),
         #("flex-col items-stretch", !model.is_layout_sideways),
       ]),
+      event.on("dragover", decode.success(DoNothing)) |> event.prevent_default(),
+      event.on("drop", decode.success(UserDragFigureDropOutsideBoard))
+        |> event.prevent_default(),
     ],
     [
       // vertical spacer
@@ -116,7 +127,6 @@ fn view(model model: Model) -> Element(Msg) {
             on_square_click: UserClickedSquare,
             on_square_drag_start: UserDragFigureStart,
             on_square_drag_drop: fn() { UserDragFigureDropOnSquare },
-            on_square_drag_end: fn() { UserDragFigureEnd },
             on_square_drag_enter: UserDragFigureEnterSquare,
             on_drag_over: fn() { DoNothing },
           ),

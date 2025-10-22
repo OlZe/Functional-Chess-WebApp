@@ -14,7 +14,6 @@ pub fn render(
   model model: logic.Model,
   on_square_click on_click: fn(chess.Coordinate) -> msg,
   on_square_drag_start on_drag_start: fn(chess.Coordinate) -> msg,
-  on_square_drag_end on_drag_end: fn() -> msg,
   on_square_drag_enter on_drag_enter: fn(chess.Coordinate) -> msg,
   on_square_drag_drop on_drag_drop: fn() -> msg,
   on_drag_over on_drag_over: fn() -> msg,
@@ -51,7 +50,6 @@ pub fn render(
         on_drag_start: fn() { on_drag_start(coord) },
         on_drag_enter: fn() { on_drag_enter(coord) },
         on_drag_drop: on_drag_drop,
-        on_drag_end: on_drag_end,
         on_drag_over: on_drag_over,
       )
     }),
@@ -65,7 +63,6 @@ fn render_square(
   is_move is_move: Bool,
   on_click on_click: fn() -> msg,
   on_drag_start on_drag_start: fn() -> msg,
-  on_drag_end on_drag_end: fn() -> msg,
   on_drag_enter on_drag_enter: fn() -> msg,
   on_drag_drop on_drag_drop: fn() -> msg,
   on_drag_over on_drag_over: fn() -> msg,
@@ -99,7 +96,6 @@ fn render_square(
         |> event.prevent_default(),
       event.on("drop", decode.success(on_drag_drop()))
         |> event.prevent_default(),
-      event.on("dragend", decode.success(on_drag_end())),
       event.on("dragenter", decode.success(on_drag_enter())),
     ],
     [figure, move_indicator] |> option.values(),
