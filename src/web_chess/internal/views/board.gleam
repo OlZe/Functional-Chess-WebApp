@@ -47,11 +47,23 @@ pub fn render(
       class("grid h-[100vmin] w-[100vmin] grid-cols-8 grid-rows-8 select-none"),
     ],
     list.map(coordinates(), fn(coord) {
+      let file_label = case coord.row {
+        chess.Row1 -> Some(file_to_string(coord.file))
+        _ -> None
+      }
+
+      let row_label = case coord.file {
+        chess.FileA -> Some(row_to_string(coord.row))
+        _ -> None
+      }
+
       render_square(
         colour: coordinate_colour(coord:),
         figure: chess.get_figure(game: model.state, coord:),
         is_highlighted: highlighted_squares |> set.contains(coord),
         is_move: move_squares |> set.contains(coord),
+        file_label:,
+        row_label:,
         on_click: fn() { on_click(coord) },
         on_drag_start: fn() { on_drag_start(coord) },
         on_drag_enter: fn() { on_drag_enter(coord) },
@@ -70,6 +82,8 @@ fn render_square(
   moving_player moving_player: Option(chess.Player),
   is_highlighted is_highlighted: Bool,
   is_move is_move: Bool,
+  file_label file_label: Option(String),
+  row_label row_label: Option(String),
   on_click on_click: fn() -> msg,
   on_drag_start on_drag_start: fn() -> msg,
   on_drag_enter on_drag_enter: fn() -> msg,
@@ -85,6 +99,34 @@ fn render_square(
     False -> None
     True -> Some(render_move_indicator(is_figure: figure != None))
   }
+
+  let file_label =
+    option.map(file_label, fn(file_label) {
+      html.p(
+        [
+          class("absolute text-sm right-1.5 bottom-1 font-bold"),
+          attr.classes([
+            #("text-[var(--color-square-light)]", colour == Dark),
+            #("text-[var(--color-square-dark)]", colour == Light),
+          ]),
+        ],
+        [html.text(file_label)],
+      )
+    })
+
+  let row_label =
+    option.map(row_label, fn(row_label) {
+      html.p(
+        [
+          class("absolute text-sm left-1.5 top-1 font-bold"),
+          attr.classes([
+            #("text-[var(--color-square-light)]", colour == Dark),
+            #("text-[var(--color-square-dark)]", colour == Light),
+          ]),
+        ],
+        [html.text(row_label)],
+      )
+    })
 
   html.div(
     [
@@ -109,7 +151,8 @@ fn render_square(
       event.on("dragenter", decode.success(on_drag_enter())),
       event.on("dragend", decode.success(on_drag_end())),
     ],
-    [figure, move_indicator] |> option.values(),
+    [figure, move_indicator, file_label, row_label]
+      |> option.values(),
   )
 }
 
@@ -247,4 +290,30 @@ fn coordinates() -> List(chess.Coordinate) {
     files
     |> list.map(fn(file) { chess.Coordinate(file, row) })
   })
+}
+
+fn file_to_string(file file: chess.File) -> String {
+  case file {
+    chess.FileA -> "a"
+    chess.FileB -> "b"
+    chess.FileC -> "c"
+    chess.FileD -> "d"
+    chess.FileE -> "e"
+    chess.FileF -> "f"
+    chess.FileG -> "g"
+    chess.FileH -> "h"
+  }
+}
+
+fn row_to_string(row row: chess.Row) -> String {
+  case row {
+    chess.Row1 -> "1"
+    chess.Row2 -> "2"
+    chess.Row3 -> "3"
+    chess.Row4 -> "4"
+    chess.Row5 -> "5"
+    chess.Row6 -> "6"
+    chess.Row7 -> "7"
+    chess.Row8 -> "8"
+  }
 }
