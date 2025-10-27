@@ -13,8 +13,12 @@ pub fn render(history history: List(logic.ArchivedMove)) -> Element(a) {
     |> list.index_map(fn(move, index) {
       let number = index + 1
       case move {
-        logic.FullMove(white:, black:) -> #(number, white, black)
-        logic.HalfMove(white:) -> #(number, white, "")
+        logic.FullMove(white:, black:) -> #(
+          number,
+          white.san_description,
+          black.san_description,
+        )
+        logic.HalfMove(white:) -> #(number, white.san_description, "")
       }
     })
 

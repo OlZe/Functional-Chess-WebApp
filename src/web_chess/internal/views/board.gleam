@@ -1,4 +1,5 @@
 import chess
+import chess/coordinates
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/list
@@ -19,23 +20,7 @@ pub fn render(
   on_drag_over on_drag_over: fn() -> msg,
   on_drag_end on_drag_end: fn() -> msg,
 ) -> Element(msg) {
-  let #(highlighted_squares, move_squares) = case model {
-    logic.NothingSelected(..) -> #(set.new(), set.new())
-    logic.FigureSelected(selected_figure:, moves:, ..) -> {
-      #(
-        [selected_figure] |> set.from_list(),
-        moves |> dict.keys() |> set.from_list(),
-      )
-    }
-    logic.DraggingFigure(selected_figure:, moves:, dragging_over:, ..) -> {
-      #(
-        [Some(selected_figure), dragging_over]
-          |> option.values()
-          |> set.from_list(),
-        moves |> dict.keys() |> set.from_list(),
-      )
-    }
-  }
+  let #(highlighted_squares, move_squares) = get_highlighted_squares(model:)
 
   let moving_player = case model.state |> chess.get_status() {
     chess.GameOngoing(next_player:) -> Some(next_player)
@@ -73,6 +58,54 @@ pub fn render(
         moving_player:,
       )
     }),
+  )
+}
+
+fn get_highlighted_squares(
+  model model: logic.Model,
+) -> #(set.Set(chess.Coordinate), set.Set(chess.Coordinate)) {
+  let #(selected_figure_squares, move_squares) = case model {
+    logic.NothingSelected(..) -> #([], [])
+    logic.FigureSelected(selected_figure:, moves:, ..) -> {
+      #([selected_figure], moves |> dict.keys())
+    }
+    logic.DraggingFigure(selected_figure:, moves:, dragging_over:, ..) -> {
+      #(
+        [Some(selected_figure), dragging_over]
+          |> option.values(),
+        moves |> dict.keys(),
+      )
+    }
+  }
+
+  let previous_move_squares = case list.first(model.move_history) {
+    Error(_) -> []
+    Ok(last_move) -> {
+      let #(last_move, player) = case last_move {
+        logic.FullMove(white: _, black:) -> #(black.move, chess.Black)
+        logic.HalfMove(white:) -> #(white.move, chess.White)
+      }
+      case last_move {
+        chess.EnPassant(from:, to:) -> [from, to]
+        chess.PawnPromotion(from:, to:, new_figure: _) -> [from, to]
+        chess.StdMove(from:, to:) -> [from, to]
+        chess.ShortCastle ->
+          case player {
+            chess.White -> [coordinates.e1, coordinates.g1]
+            chess.Black -> [coordinates.e8, coordinates.g8]
+          }
+        chess.LongCastle ->
+          case player {
+            chess.White -> [coordinates.e1, coordinates.c1]
+            chess.Black -> [coordinates.e8, coordinates.c8]
+          }
+      }
+    }
+  }
+
+  #(
+    list.append(selected_figure_squares, previous_move_squares) |> set.from_list,
+    move_squares |> set.from_list,
   )
 }
 

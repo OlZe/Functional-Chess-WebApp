@@ -26,8 +26,12 @@ pub type Model {
 }
 
 pub type ArchivedMove {
-  FullMove(white: String, black: String)
-  HalfMove(white: String)
+  FullMove(white: ArchivedHalfMove, black: ArchivedHalfMove)
+  HalfMove(white: ArchivedHalfMove)
+}
+
+pub type ArchivedHalfMove {
+  ArchivedHalfMove(san_description: String, move: chess.Move)
 }
 
 pub fn handle_clicked_square(
@@ -214,18 +218,30 @@ fn try_do_move(
       panic as "error executing move"
     }
     Ok(new_state) -> {
-      // Update move history
-      let assert Ok(move_description) = chess_san.describe(game:, move:)
-      let new_history = case history {
-        [] -> [HalfMove(move_description)]
-        [FullMove(..), ..] -> [HalfMove(move_description), ..history]
-        [HalfMove(white_move), ..rest] -> [
-          FullMove(white_move, move_description),
-          ..rest
-        ]
+      let new_history = {
+        let assert Ok(san) = chess_san.describe(game:, move:)
+        let archived_move = ArchivedHalfMove(san, move)
+        append_move_history(history:, new_move: archived_move)
       }
       NothingSelected(state: new_state, move_history: new_history)
     }
+  }
+}
+
+fn append_move_history(
+  history history: List(ArchivedMove),
+  new_move new_move: ArchivedHalfMove,
+) -> List(ArchivedMove) {
+  case history {
+    // If empty, create a new half move
+    [] -> [HalfMove(white: new_move)]
+    // If newest entry is full move, create a new half move
+    [FullMove(..), ..] -> [HalfMove(white: new_move), ..history]
+    // If newest entry is a half move, then make it full
+    [HalfMove(white_move), ..rest] -> [
+      FullMove(white: white_move, black: new_move),
+      ..rest
+    ]
   }
 }
 
