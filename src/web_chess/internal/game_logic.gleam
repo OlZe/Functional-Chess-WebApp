@@ -10,8 +10,15 @@ import gleam/set
 
 pub type Model {
   Model(
+    /// The latest game state
+    root_state: chess.GameState,
+    /// The currently selected game state as according to `selected_move_history_index`
     state: chess.GameState,
+    /// The index of the selected board position in the `move_history`
+    selected_move_history_index: Int,
+    /// The entire move history from the beginning of the game up until `root_state`
     move_history: List(ArchivedMove),
+    /// Whether the user selected a figure
     figure_selection_state: FigureSelectionState,
   )
 }
@@ -35,15 +42,27 @@ pub type ArchivedMove {
 }
 
 pub type ArchivedHalfMove {
-  ArchivedHalfMove(san_description: String, move: chess.Move)
+  ArchivedHalfMove(san_description: String, move: chess.Move, index: Int)
 }
 
 pub fn new() -> Model {
+  let state = chess.new_game()
   Model(
-    state: chess.new_game(),
+    root_state: state,
+    state: state,
+    selected_move_history_index: 0,
     move_history: [],
     figure_selection_state: NothingSelected,
   )
+}
+
+pub fn handle_select_past_position(
+  model model: Model,
+  index index: Int,
+) -> Model {
+  let assert Ok(selected_state) =
+    model.root_state |> chess.get_past_position(index)
+  Model(..model, state: selected_state, selected_move_history_index: index)
 }
 
 pub fn handle_clicked_square(
@@ -58,12 +77,12 @@ pub fn handle_clicked_square(
         FigureSelected(selected_figure: from, moves:) -> {
           let clicked_move = dict.get(moves, square)
           case clicked_move {
-            Ok(move) -> try_do_move(model.state, model.move_history, from, move)
-            Error(_) -> try_select(model.state, model.move_history, square)
+            Ok(move) -> try_do_move(model, from, move)
+            Error(_) -> try_select(model, square)
           }
         }
         // If nothing was selected, try selecting
-        NothingSelected -> try_select(model.state, model.move_history, square)
+        NothingSelected -> try_select(model, square)
         // Shouldn't happen, but if it does, then just deselect
         DraggingFigure(..) ->
           Model(..model, figure_selection_state: NothingSelected)
@@ -167,13 +186,7 @@ pub fn handle_drag_drop_on_square(model model: Model) -> Model {
             // If drop location is not a move, then deselect
             Error(_) -> Model(..model, figure_selection_state: NothingSelected)
             // If drop location is a move, then do the move
-            Ok(move) ->
-              try_do_move(
-                game: model.state,
-                history: model.move_history,
-                from: selected_figure,
-                move:,
-              )
+            Ok(move) -> try_do_move(model:, from: selected_figure, move:)
           }
         }
       }
@@ -194,8 +207,7 @@ pub fn handle_drag_end(model model: Model) {
 }
 
 fn try_do_move(
-  game game: chess.GameState,
-  history history: List(ArchivedMove),
+  model model: Model,
   from from: chess.Coordinate,
   move move: chess.AvailableMove,
 ) -> Model {
@@ -209,42 +221,93 @@ fn try_do_move(
     chess.StdMoveAvailable(to:) -> chess.StdMove(from:, to:)
   }
 
-  // Execute move and return
-  let new_state = chess.player_move(game:, move:)
-  case new_state {
-    Error(err) -> {
-      echo err
-      panic as "error executing move"
-    }
-    Ok(new_state) -> {
-      let new_history = {
-        let assert Ok(san) = chess_san.describe(game:, move:)
-        let archived_move = ArchivedHalfMove(san, move)
-        append_move_history(history:, new_move: archived_move)
-      }
-      Model(
-        state: new_state,
-        move_history: new_history,
-        figure_selection_state: NothingSelected,
-      )
-    }
+  // Execute move
+  let assert Ok(new_state) = chess.player_move(game: model.state, move:)
+
+  let #(new_history, new_history_index) = {
+    let assert Ok(san) = chess_san.describe(game: model.state, move:)
+    model.move_history
+    |> take_until_move_history(model.selected_move_history_index)
+    |> append_move_history(san:, move:)
+  }
+
+  Model(
+    root_state: new_state,
+    state: new_state,
+    selected_move_history_index: new_history_index,
+    move_history: new_history,
+    figure_selection_state: NothingSelected,
+  )
+}
+
+/// Append to the move history.
+/// 
+/// Returns the new move history and the newly inserted index.
+fn append_move_history(
+  history history: List(ArchivedMove),
+  san san: String,
+  move move: chess.Move,
+) -> #(List(ArchivedMove), Int) {
+  case history {
+    // If empty, create a new half move
+    [] -> #([HalfMove(white: ArchivedHalfMove(san, move, 1))], 1)
+    // If newest entry is full move, create a new half move
+    [FullMove(..) as prev_move, ..] -> #(
+      [
+        HalfMove(white: ArchivedHalfMove(
+          san_description: san,
+          move:,
+          index: prev_move.black.index + 1,
+        )),
+        ..history
+      ],
+      prev_move.black.index + 1,
+    )
+    // If newest entry is a half move, then make it full
+    [HalfMove(white_move), ..rest] -> #(
+      [
+        FullMove(
+          white: white_move,
+          black: ArchivedHalfMove(
+            san_description: san,
+            move:,
+            index: white_move.index + 1,
+          ),
+        ),
+        ..rest
+      ],
+      white_move.index + 1,
+    )
   }
 }
 
-fn append_move_history(
+/// Returns the part from the move history which goes from 0 to index (inclusive)
+fn take_until_move_history(
   history history: List(ArchivedMove),
-  new_move new_move: ArchivedHalfMove,
+  index index: Int,
 ) -> List(ArchivedMove) {
+  // Move History is organized like this:
+  // [
+  //    (white: 5)
+  //    (white: 3, black: 4)
+  //    (white: 1, black: 2)
+  // ]
+
+  use <- bool.guard(when: index == 0, return: [])
+
   case history {
-    // If empty, create a new half move
-    [] -> [HalfMove(white: new_move)]
-    // If newest entry is full move, create a new half move
-    [FullMove(..), ..] -> [HalfMove(white: new_move), ..history]
-    // If newest entry is a half move, then make it full
-    [HalfMove(white_move), ..rest] -> [
-      FullMove(white: white_move, black: new_move),
+    [] -> panic as "index too large"
+    [HalfMove(move), ..rest] if move.index == index -> [HalfMove(move), ..rest]
+    [HalfMove(..), ..rest] -> take_until_move_history(rest, index)
+    [FullMove(white:, black:), ..rest] if black.index == index -> [
+      FullMove(white:, black:),
       ..rest
     ]
+    [FullMove(white:, black: _), ..rest] if white.index == index -> [
+      HalfMove(white),
+      ..rest
+    ]
+    [FullMove(..), ..rest] -> take_until_move_history(rest, index)
   }
 }
 
@@ -253,19 +316,16 @@ fn append_move_history(
 /// Deselects if trying to select an empty square or a figure that belongs to the enemy.
 /// 
 /// Panics if the game is not ongoing.
-fn try_select(
-  game game: chess.GameState,
-  history history: List(ArchivedMove),
-  square square: chess.Coordinate,
-) -> Model {
-  let assert chess.GameOngoing(next_player: player) = chess.get_status(game:)
+fn try_select(model model: Model, square square: chess.Coordinate) -> Model {
+  let assert chess.GameOngoing(next_player: player) =
+    chess.get_status(game: model.state)
 
-  case chess.get_figure(game, square) {
+  case chess.get_figure(model.state, square) {
     // Clicked friendly figure, select
     Some(#(_, figure_owner)) if figure_owner == player -> {
       // Get moves and map to coordinate
       let moves =
-        chess.get_moves(game:, from: square)
+        chess.get_moves(game: model.state, from: square)
         |> result.lazy_unwrap(fn() { set.new() })
         |> set.to_list()
         |> list.map(fn(move) {
@@ -288,17 +348,11 @@ fn try_select(
         |> dict.from_list()
 
       Model(
-        state: game,
-        move_history: history,
+        ..model,
         figure_selection_state: FigureSelected(moves:, selected_figure: square),
       )
     }
     // Deselect
-    _ ->
-      Model(
-        state: game,
-        move_history: history,
-        figure_selection_state: NothingSelected,
-      )
+    _ -> Model(..model, figure_selection_state: NothingSelected)
   }
 }

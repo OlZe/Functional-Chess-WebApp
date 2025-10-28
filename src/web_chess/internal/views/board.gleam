@@ -1,5 +1,6 @@
 import chess
 import chess/coordinates
+import gleam/bool
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/list
@@ -80,27 +81,30 @@ fn get_highlighted_squares(
     }
   }
 
-  let previous_move_squares = case list.first(model.move_history) {
-    Error(_) -> []
-    Ok(last_move) -> {
-      let #(last_move, player) = case last_move {
-        logic.FullMove(white: _, black:) -> #(black.move, chess.Black)
-        logic.HalfMove(white:) -> #(white.move, chess.White)
-      }
-      case last_move {
-        chess.EnPassant(from:, to:) -> [from, to]
-        chess.PawnPromotion(from:, to:, new_figure: _) -> [from, to]
-        chess.StdMove(from:, to:) -> [from, to]
-        chess.ShortCastle ->
-          case player {
-            chess.White -> [coordinates.e1, coordinates.g1]
-            chess.Black -> [coordinates.e8, coordinates.g8]
-          }
-        chess.LongCastle ->
-          case player {
-            chess.White -> [coordinates.e1, coordinates.c1]
-            chess.Black -> [coordinates.e8, coordinates.c8]
-          }
+  let previous_move_squares = {
+    let previous_move =
+      get_previous_move(
+        history: model.move_history,
+        selected_index: model.selected_move_history_index,
+      )
+    case previous_move {
+      None -> []
+      Some(#(previous_move, player)) -> {
+        case previous_move.move {
+          chess.EnPassant(from:, to:) -> [from, to]
+          chess.PawnPromotion(from:, to:, new_figure: _) -> [from, to]
+          chess.StdMove(from:, to:) -> [from, to]
+          chess.ShortCastle ->
+            case player {
+              chess.White -> [coordinates.e1, coordinates.g1]
+              chess.Black -> [coordinates.e8, coordinates.g8]
+            }
+          chess.LongCastle ->
+            case player {
+              chess.White -> [coordinates.e1, coordinates.c1]
+              chess.Black -> [coordinates.e8, coordinates.c8]
+            }
+        }
       }
     }
   }
@@ -109,6 +113,27 @@ fn get_highlighted_squares(
     list.append(selected_figure_squares, previous_move_squares) |> set.from_list,
     move_squares |> set.from_list,
   )
+}
+
+fn get_previous_move(
+  history history: List(logic.ArchivedMove),
+  selected_index selected_index: Int,
+) -> Option(#(logic.ArchivedHalfMove, chess.Player)) {
+  use <- bool.guard(when: selected_index == 0, return: None)
+
+  case history {
+    [] -> panic
+    [logic.HalfMove(move), ..] if move.index == selected_index ->
+      Some(#(move, chess.White))
+    [logic.HalfMove(..), ..rest] ->
+      get_previous_move(history: rest, selected_index:)
+    [logic.FullMove(white: move, black: _), ..] if move.index == selected_index ->
+      Some(#(move, chess.White))
+    [logic.FullMove(white: _, black: move), ..] if move.index == selected_index ->
+      Some(#(move, chess.Black))
+    [logic.FullMove(..), ..rest] ->
+      get_previous_move(history: rest, selected_index:)
+  }
 }
 
 fn render_square(

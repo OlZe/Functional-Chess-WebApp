@@ -45,6 +45,7 @@ type Msg {
   UserDragFigureEnterSquare(over: chess.Coordinate)
   UserDragFigureDropOnSquare
   UserDragFigureEnd
+  UserSelectedPastPosition(index: Int)
   DoNothing
 }
 
@@ -76,6 +77,12 @@ fn update(model model: Model, msg msg: Msg) -> #(Model, effect.Effect(Msg)) {
       )
     UserDragFigureEnd ->
       Model(..model, game: game_logic.handle_drag_end(model: model.game))
+
+    UserSelectedPastPosition(index:) ->
+      Model(
+        ..model,
+        game: game_logic.handle_select_past_position(model: model.game, index:),
+      )
     DoNothing -> model
   }
 
@@ -136,7 +143,11 @@ fn view(model model: Model) -> Element(Msg) {
           ]),
         ],
         [
-          move_history.render(model.game.move_history),
+          move_history.render(
+            history: model.game.move_history,
+            selected_index: model.game.selected_move_history_index,
+            on_click_move: UserSelectedPastPosition,
+          ),
           html.div([class("text-center")], [license.render()]),
         ],
       ),
