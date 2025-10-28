@@ -64,7 +64,9 @@ pub fn render(
 fn get_highlighted_squares(
   model model: logic.Model,
 ) -> #(set.Set(chess.Coordinate), set.Set(chess.Coordinate)) {
-  let #(selected_figure_squares, move_squares) = case model.selection_state {
+  let #(selected_figure_squares, move_squares) = case
+    model.figure_selection_state
+  {
     logic.NothingSelected -> #([], [])
     logic.FigureSelected(selected_figure:, moves:) -> {
       #([selected_figure], moves |> dict.keys())
