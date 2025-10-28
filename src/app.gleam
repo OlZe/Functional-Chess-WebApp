@@ -1,11 +1,9 @@
 import chess
-import gleam/dynamic/decode
 import lustre
 import lustre/attribute.{class, classes}
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
-import lustre/event
 import web_chess/internal/game_logic
 import web_chess/internal/layout
 import web_chess/internal/views/board
@@ -27,10 +25,7 @@ fn init(_flags) {
   let model =
     Model(
       is_layout_sideways: layout.determine_is_layout_sideways(),
-      game: game_logic.NothingSelected(
-        state: chess.new_game(),
-        move_history: [],
-      ),
+      game: game_logic.new(),
     )
 
   let update_layout_on_resize =

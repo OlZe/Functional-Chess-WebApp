@@ -9,16 +9,20 @@ import gleam/result
 import gleam/set
 
 pub type Model {
-  NothingSelected(state: chess.GameState, move_history: List(ArchivedMove))
-  FigureSelected(
+  Model(
     state: chess.GameState,
     move_history: List(ArchivedMove),
+    selection_state: FigureSelectionState,
+  )
+}
+
+pub type FigureSelectionState {
+  NothingSelected
+  FigureSelected(
     selected_figure: chess.Coordinate,
     moves: dict.Dict(chess.Coordinate, chess.AvailableMove),
   )
   DraggingFigure(
-    state: chess.GameState,
-    move_history: List(ArchivedMove),
     selected_figure: chess.Coordinate,
     moves: dict.Dict(chess.Coordinate, chess.AvailableMove),
     dragging_over: Option(chess.Coordinate),
@@ -34,6 +38,14 @@ pub type ArchivedHalfMove {
   ArchivedHalfMove(san_description: String, move: chess.Move)
 }
 
+pub fn new() -> Model {
+  Model(
+    state: chess.new_game(),
+    move_history: [],
+    selection_state: NothingSelected,
+  )
+}
+
 pub fn handle_clicked_square(
   model model: Model,
   square square: chess.Coordinate,
@@ -41,21 +53,19 @@ pub fn handle_clicked_square(
   case model.state |> chess.get_status {
     chess.GameEnded(_) -> model
     chess.GameOngoing(_) -> {
-      case model {
+      case model.selection_state {
         // If a figure was already selected, do a move, switch focus, or deselect
-        FigureSelected(state:, selected_figure: from, moves:, move_history:) -> {
+        FigureSelected(selected_figure: from, moves:) -> {
           let clicked_move = dict.get(moves, square)
           case clicked_move {
-            Ok(move) -> try_do_move(model.state, move_history, from, move)
-            Error(_) -> try_select(state, move_history, square)
+            Ok(move) -> try_do_move(model.state, model.move_history, from, move)
+            Error(_) -> try_select(model.state, model.move_history, square)
           }
         }
         // If nothing was selected, try selecting
-        NothingSelected(state:, move_history:) ->
-          try_select(state, move_history, square)
+        NothingSelected -> try_select(model.state, model.move_history, square)
         // Shouldn't happen, but if it does, then just deselect
-        DraggingFigure(state:, move_history:, ..) ->
-          NothingSelected(state:, move_history:)
+        DraggingFigure(..) -> Model(..model, selection_state: NothingSelected)
       }
     }
   }
@@ -98,17 +108,18 @@ pub fn handle_drag_start(
         })
         |> dict.from_list()
 
-      DraggingFigure(
-        state: model.state,
-        selected_figure: square,
-        moves:,
-        move_history: model.move_history,
-        dragging_over: None,
+      Model(
+        ..model,
+        selection_state: DraggingFigure(
+          selected_figure: square,
+          moves:,
+          dragging_over: None,
+        ),
       )
     }
     // Deselect
     _ -> {
-      NothingSelected(state: model.state, move_history: model.move_history)
+      Model(..model, selection_state: NothingSelected)
     }
   }
 }
@@ -117,20 +128,15 @@ pub fn handle_drag_enter_square(
   model model: Model,
   over over: chess.Coordinate,
 ) -> Model {
-  case model {
-    DraggingFigure(
-      state:,
-      moves:,
-      dragging_over: _,
-      move_history:,
-      selected_figure:,
-    ) ->
-      DraggingFigure(
-        state:,
-        move_history:,
-        selected_figure:,
-        moves:,
-        dragging_over: Some(over),
+  case model.selection_state {
+    DraggingFigure(moves:, dragging_over: _, selected_figure:) ->
+      Model(
+        ..model,
+        selection_state: DraggingFigure(
+          selected_figure:,
+          moves:,
+          dragging_over: Some(over),
+        ),
       )
     // If not in valid dragging state, do nothing
     _ -> model
@@ -138,38 +144,32 @@ pub fn handle_drag_enter_square(
 }
 
 pub fn handle_drag_drop_on_square(model model: Model) -> Model {
-  case model {
-    DraggingFigure(
-      state:,
-      moves:,
-      dragging_over:,
-      move_history:,
-      selected_figure:,
-    ) ->
+  case model.selection_state {
+    DraggingFigure(moves:, dragging_over:, selected_figure:) ->
       case dragging_over {
         // If the drop location is outside the board, then deselect
-        None -> NothingSelected(state:, move_history:)
+        None -> Model(..model, selection_state: NothingSelected)
         Some(dragging_over) -> {
           // If dropping on selected figure, then stop dragging but keep it selected
-          use <- bool.guard(
+          use <- bool.lazy_guard(
             when: dragging_over == selected_figure,
-            return: FigureSelected(
-              state:,
-              move_history:,
-              selected_figure:,
-              moves:,
-            ),
+            return: fn() {
+              Model(
+                ..model,
+                selection_state: FigureSelected(selected_figure:, moves:),
+              )
+            },
           )
 
           let move = dict.get(moves, dragging_over)
           case move {
             // If drop location is not a move, then deselect
-            Error(_) -> NothingSelected(state:, move_history:)
+            Error(_) -> Model(..model, selection_state: NothingSelected)
             // If drop location is a move, then do the move
             Ok(move) ->
               try_do_move(
-                game: state,
-                history: move_history,
+                game: model.state,
+                history: model.move_history,
                 from: selected_figure,
                 move:,
               )
@@ -182,15 +182,10 @@ pub fn handle_drag_drop_on_square(model model: Model) -> Model {
 }
 
 pub fn handle_drag_end(model model: Model) {
-  case model {
-    DraggingFigure(
-      state:,
-      move_history:,
-      selected_figure:,
-      moves:,
-      dragging_over: _,
-    ) -> FigureSelected(state:, move_history:, selected_figure:, moves:)
-    _ as model -> model
+  case model.selection_state {
+    DraggingFigure(selected_figure:, moves:, dragging_over: _) ->
+      Model(..model, selection_state: FigureSelected(selected_figure:, moves:))
+    _ -> model
   }
 }
 
@@ -223,7 +218,11 @@ fn try_do_move(
         let archived_move = ArchivedHalfMove(san, move)
         append_move_history(history:, new_move: archived_move)
       }
-      NothingSelected(state: new_state, move_history: new_history)
+      Model(
+        state: new_state,
+        move_history: new_history,
+        selection_state: NothingSelected,
+      )
     }
   }
 }
@@ -284,14 +283,18 @@ fn try_select(
         })
         |> dict.from_list()
 
-      FigureSelected(
+      Model(
         state: game,
-        selected_figure: square,
-        moves:,
         move_history: history,
+        selection_state: FigureSelected(moves:, selected_figure: square),
       )
     }
     // Deselect
-    _ -> NothingSelected(state: game, move_history: history)
+    _ ->
+      Model(
+        state: game,
+        move_history: history,
+        selection_state: NothingSelected,
+      )
   }
 }
