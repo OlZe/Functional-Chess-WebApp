@@ -225,7 +225,12 @@ fn try_do_move(
   let assert Ok(new_state) = chess.player_move(game: model.state, move:)
 
   let #(new_history, new_history_index) = {
-    let assert Ok(san) = chess_san.describe(game: model.state, move:)
+    let assert Ok(san) =
+      chess_san.describe(
+        move:,
+        before_state: model.state,
+        after_state: new_state,
+      )
     model.move_history
     |> take_until_move_history(model.selected_move_history_index)
     |> append_move_history(san:, move:)
